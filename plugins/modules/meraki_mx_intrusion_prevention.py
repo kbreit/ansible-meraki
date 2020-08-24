@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_intrusion_prevention
+module: meraki_mx_intrusion_prevention
 short_description: Manage intrustion prevention in the Meraki cloud
 description:
 - Allows for management of intrusion prevention rules networks within Meraki MX networks.

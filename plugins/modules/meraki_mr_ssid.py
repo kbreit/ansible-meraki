@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_ssid
+module: meraki_mr_ssid
 short_description: Manage wireless SSIDs in the Meraki cloud
 description:
 - Allows for management of SSIDs in a Meraki wireless environment.
@@ -222,7 +222,7 @@ extends_documentation_fragment: cisco.meraki.meraki
 
 EXAMPLES = r'''
 - name: Enable and name SSID
-  meraki_ssid:
+  meraki_mr_ssid:
     auth_key: abc123
     state: present
     org_name: YourOrg
@@ -232,7 +232,7 @@ EXAMPLES = r'''
   delegate_to: localhost
 
 - name: Set PSK with invalid encryption mode
-  meraki_ssid:
+  meraki_mr_ssid:
     auth_key: abc123
     state: present
     org_name: YourOrg
@@ -245,7 +245,7 @@ EXAMPLES = r'''
   delegate_to: localhost
 
 - name: Configure RADIUS servers
-  meraki_ssid:
+  meraki_mr_ssid:
     auth_key: abc123
     state: present
     org_name: YourOrg
@@ -259,7 +259,7 @@ EXAMPLES = r'''
   delegate_to: localhost
 
 - name: Enable click-through splash page
-  meraki_ssid:
+  meraki_mr_ssid:
     auth_key: abc123
     state: present
     org_name: YourOrg

@@ -35,7 +35,7 @@
     delegate_to: localhost
 
   - name: Query all SSIDs
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: query
       org_name: '{{test_org_name}}'
@@ -44,7 +44,7 @@
     register: query_all
 
   - name: Enable and name SSID with check mode
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -61,7 +61,7 @@
         - enable_name_ssid_check.data is defined
 
   - name: Enable and name SSID
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -81,7 +81,7 @@
         - enable_name_ssid.data.name == 'AnsibleSSID'
 
   - name: Check for idempotency
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -100,7 +100,7 @@
         - enable_name_ssid_idempotent.data is defined
 
   - name: Query one SSIDs
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: query
       org_name: '{{test_org_name}}'
@@ -117,7 +117,7 @@
         - query_one.data.name == 'AnsibleSSID'
 
   - name: Query one SSID with number
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: query
       org_name: '{{test_org_name}}'
@@ -134,7 +134,7 @@
         - query_one_number.data.name == 'AnsibleSSID'
 
   - name: Disable SSID without specifying number
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -152,7 +152,7 @@
         - disable_ssid.data.enabled == False
 
   - name: Enable SSID with number
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -170,7 +170,7 @@
         - enable_ssid_number.data.enabled == True
 
   - name: Set VLAN arg spec
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -192,7 +192,7 @@
       that: set_vlan_arg is changed
 
   - name: Set VLAN arg spec
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -215,7 +215,7 @@
 
 
   - name: Set PSK
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -237,7 +237,7 @@
         - psk.data.wpa_encryption_mode == 'WPA2 only'
 
   - name: Set PSK with idempotency
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -260,7 +260,7 @@
   # Check WPA3 Transition Mode
   #
   - name: Set WPA3 Transition Mode
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -286,7 +286,7 @@
     when: wpa_enabled == True
 
   - name: Set WPA3 Transition Mode with Idempotency
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -310,7 +310,7 @@
     when: wpa_enabled == True
 
   - name: Enable click-through splash page
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -328,7 +328,7 @@
         - splash_click.data.splash_page == 'Click-through splash page'
 
   - name: Set walled garden
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -350,7 +350,7 @@
         - walled_garden is changed
 
   - name: Set walled garden with idempotency
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -372,7 +372,7 @@
         - walled_garden_idempotent is not changed
 
   - name: Configure RADIUS servers
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -394,7 +394,7 @@
         - set_radius_server.data.radius_servers.0.host == '192.0.1.200'
 
   - name: Configure RADIUS servers with idempotency
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -419,7 +419,7 @@
   # Error testing #
   #################
   - name: Set PSK with wrong mode
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -439,7 +439,7 @@
         - psk_invalid.msg == 'PSK is only allowed when auth_mode is set to psk'
 
   - name: Set PSK with invalid encryption mode
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -460,7 +460,7 @@
         - psk_invalid_mode.msg == 'PSK requires encryption_mode be set to wpa'
 
   - name: Error for PSK and RADIUS servers
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -483,7 +483,7 @@
         - 'err_radius_server_psk.msg == "radius_servers requires auth_mode to be open-with-radius or 8021x-radius"'
 
   - name: Set VLAN arg without default VLAN error
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: present
       org_name: '{{test_org_name}}'
@@ -507,7 +507,7 @@
 
   always:
   - name: Delete SSID with check mode
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: absent
       org_name: '{{test_org_name}}'
@@ -523,7 +523,7 @@
         - delete_ssid_check.data is defined
 
   - name: Delete SSID
-    meraki_ssid:
+    meraki_mr_ssid:
       auth_key: '{{auth_key}}'
       state: absent
       org_name: '{{test_org_name}}'

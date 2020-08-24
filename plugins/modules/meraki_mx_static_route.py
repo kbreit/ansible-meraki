@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_static_route
+module: meraki_mx_static_route
 short_description: Manage static routes in the Meraki cloud
 description:
 - Allows for creation, management, and visibility into static routes within Meraki.

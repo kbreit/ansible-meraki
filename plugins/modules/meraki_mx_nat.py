@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_nat
+module: meraki_mx_nat
 short_description: Manage NAT rules in Meraki cloud
 description:
 - Allows for creation, management, and visibility of NAT rules (1:1, 1:many, port forwarding) within Meraki.

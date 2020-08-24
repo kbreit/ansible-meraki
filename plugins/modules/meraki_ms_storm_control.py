@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_switch_storm_control
+module: meraki_ms_storm_control
 short_description: Manage storm control configuration on a switch in the Meraki cloud
 version_added: "0.0.1"
 description:

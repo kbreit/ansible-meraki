@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_switchport
+module: meraki_ms_switchport
 short_description: Manage switchports on a switch in the Meraki cloud
 description:
 - Allows for management of switchports settings for Meraki MS switches.

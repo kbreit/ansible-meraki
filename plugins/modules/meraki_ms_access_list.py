@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_switch_access_list
+module: meraki_ms_access_list
 short_description: Manage access lists for Meraki switches in the Meraki cloud
 version_added: "0.1.0"
 description:

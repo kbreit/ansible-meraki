@@ -15,7 +15,7 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = r'''
 ---
-module: meraki_switch_stack
+module: meraki_ms_stack
 short_description: Modify switch stacking configuration in Meraki.
 version_added: "1.3.0"
 description:
