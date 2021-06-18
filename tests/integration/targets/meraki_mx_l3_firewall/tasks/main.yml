@@ -31,7 +31,7 @@
       that:
         - query.data|length == 1
 
-  - name: Set one firewall rule
+  - name: Set one firewall rule with check mode
     meraki_mx_l3_firewall:
       auth_key: '{{ auth_key }}'
       org_name: '{{test_org_name}}'
@@ -39,8 +39,38 @@
       state: present
       rules:
         - comment: Deny to documentation address
-          src_port: any
-          src_cidr: any
+          src_port: Any
+          src_cidr: Any
+          dest_port: 80,443
+          dest_cidr: 192.0.1.1/32
+          protocol: tcp
+          policy: deny
+    delegate_to: localhost
+    check_mode: yes
+    register: create_one_check
+
+  - debug:
+      var: create_one_check
+
+  - assert:
+      that:
+        - create_one_check.data|length == 2
+        - create_one_check.data.0.dest_cidr == '192.0.1.1/32'
+        - create_one_check.data.0.protocol == 'tcp'
+        - create_one_check.data.0.policy == 'deny'
+        - create_one_check is changed
+        - create_one_check.data is defined
+
+  - name: Set one firewall rule
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_id: '{{test_org_id}}'
+      net_name: TestNetAppliance
+      state: present
+      rules:
+        - comment: Deny to documentation address
+          src_port: Any
+          src_cidr: Any
           dest_port: 80,443
           dest_cidr: 192.0.1.1/32
           protocol: tcp
@@ -53,10 +83,10 @@
 
   - assert:
       that:
-        - create_one.data|length == 2
-        - create_one.data.0.dest_cidr == '192.0.1.1/32'
-        - create_one.data.0.protocol == 'tcp'
-        - create_one.data.0.policy == 'deny'
+        - create_one.data.rules|length == 2
+        - create_one.data.rules.0.dest_cidr == '192.0.1.1/32'
+        - create_one.data.rules.0.protocol == 'tcp'
+        - create_one.data.rules.0.policy == 'deny'
         - create_one.changed == True
         - create_one.data is defined
 
@@ -68,8 +98,8 @@
       state: present
       rules:
         - comment: Deny to documentation address
-          src_port: any
-          src_cidr: any
+          src_port: Any
+          src_cidr: Any
           dest_port: 80,443
           dest_cidr: 192.0.1.1/32
           protocol: tcp
@@ -85,6 +115,31 @@
         - create_one_idempotent.changed == False
         - create_one_idempotent.data is defined
 
+  - name: Update one existing rule
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_name: '{{test_org_name}}'
+      net_name: TestNetAppliance
+      state: present
+      rules:
+        - comment: Deny all documentation addresses
+          src_port: Any
+          src_cidr: Any
+          dest_port: 80,443
+          dest_cidr: 192.0.1.1/32,192.0.1.2/32
+          protocol: tcp
+          policy: deny
+    delegate_to: localhost
+    register: update_one
+
+  - debug:
+      msg: '{{update_one}}'
+
+  - assert:
+      that:
+        - update_one.changed == True
+        - update_one.data is defined
+
   - name: Create syslog in network
     meraki_syslog:
       auth_key: '{{ auth_key }}'
@@ -99,6 +154,34 @@
             - Flows
     delegate_to: localhost
 
+  - name: Enable syslog for default rule with check mode
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_name: '{{test_org_name}}'
+      net_name: TestNetAppliance
+      state: present
+      rules:
+        - comment: Deny to documentation address
+          src_port: Any
+          src_cidr: Any
+          dest_port: 80,443
+          dest_cidr: 192.0.1.1/32
+          protocol: tcp
+          policy: deny        
+      syslog_default_rule: yes
+    delegate_to: localhost
+    check_mode: yes
+    register: default_syslog_check
+
+  - debug:
+      msg: '{{default_syslog_check}}'
+
+  - assert:
+      that:
+        - default_syslog_check.data is defined
+        - default_syslog_check.data.1.syslog_enabled == True
+
+
   - name: Enable syslog for default rule
     meraki_mx_l3_firewall:
       auth_key: '{{ auth_key }}'
@@ -107,8 +190,8 @@
       state: present
       rules:
         - comment: Deny to documentation address
-          src_port: any
-          src_cidr: any
+          src_port: Any
+          src_cidr: Any
           dest_port: 80,443
           dest_cidr: 192.0.1.1/32
           protocol: tcp
@@ -124,6 +207,43 @@
       that:
         - default_syslog.data is defined
 
+  - name: Set protocol to any for idempotency check
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_name: '{{test_org_name}}'
+      net_name: TestNetAppliance
+      state: present
+      rules:
+        - comment: Deny to documentation address
+          src_port: any
+          src_cidr: any
+          dest_port: any
+          dest_cidr: 192.0.1.1/32
+          protocol: any
+          policy: deny        
+    delegate_to: localhost
+
+  - name: Check for protocol any idempotency
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_name: '{{test_org_name}}'
+      net_name: TestNetAppliance
+      state: present
+      rules:
+        - comment: Deny to documentation address
+          src_port: any
+          src_cidr: any
+          dest_port: any
+          dest_cidr: 192.0.1.1/32
+          protocol: any
+          policy: deny        
+    delegate_to: localhost
+    register: any_idempotency
+
+  - assert:
+      that:
+        - any_idempotency is not changed
+
   - name: Query firewall rules
     meraki_mx_l3_firewall:
       auth_key: '{{ auth_key }}'
@@ -133,12 +253,9 @@
     delegate_to: localhost
     register: query
 
-  - debug:
-      msg: '{{query.data.1}}'
-
   - assert:
       that:
-        - query.data.1.syslog_enabled == True
+        - query.data.rules.1.syslog_enabled == True
         - default_syslog.changed == True
 
   - name: Disable syslog for default rule
@@ -149,8 +266,8 @@
       state: present
       rules:
         - comment: Deny to documentation address
-          src_port: any
-          src_cidr: any
+          src_port: Any
+          src_cidr: Any
           dest_port: 80,443
           dest_cidr: 192.0.1.1/32
           protocol: tcp
@@ -176,11 +293,42 @@
     register: query
 
   - debug:
-      msg: '{{query.data.1}}'
+      msg: '{{query}}'
+
+  - name: Enable syslog for default rule with no rules and with check mode
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_name: '{{test_org_name}}'
+      net_name: TestNetAppliance
+      state: present
+      syslog_default_rule: yes
+    delegate_to: localhost
+    check_mode: yes
+    register: enable_syslog_only_check
+
+  - debug:
+      msg: '{{enable_syslog_only_check}}'
 
   - assert:
       that:
-        - query.data.1.syslog_enabled == False
+        - enable_syslog_only_check.data.rules.1.syslog_enabled == True
+        - enable_syslog_only_check is changed
+
+  - name: Query firewall rules
+    meraki_mx_l3_firewall:
+      auth_key: '{{ auth_key }}'
+      org_name: '{{test_org_name}}'
+      net_name: TestNetAppliance
+      state: query
+    delegate_to: localhost
+    register: query
+
+  - debug:
+      msg: '{{query.data.rules.1}}'
+
+  - assert:
+      that:
+        - query.data.rules.1.syslog_enabled == False
         - disable_syslog.changed == True
 
   always:

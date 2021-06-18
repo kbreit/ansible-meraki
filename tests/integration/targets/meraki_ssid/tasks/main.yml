@@ -4,6 +4,10 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 ---
 - block:
+
+  - set_fact:
+      wpa_enabled: false
+
   - name: Test an API key is provided
     fail:
       msg: Please define an API key
@@ -21,6 +25,15 @@
   - debug: 
       msg: '{{test_net}}'
 
+  - name: Add access points to network
+    meraki_device:
+      auth_key: '{{auth_key}}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      serial: '{{serial_wireless}}'
+    delegate_to: localhost
+
   - name: Query all SSIDs
     meraki_ssid:
       auth_key: '{{auth_key}}'
@@ -29,6 +42,23 @@
       net_name: TestNetSSID
     delegate_to: localhost
     register: query_all
+
+  - name: Enable and name SSID with check mode
+    meraki_ssid:
+      auth_key: '{{auth_key}}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      name: AnsibleSSID
+      enabled: true
+    delegate_to: localhost
+    register: enable_name_ssid_check
+    check_mode: yes
+
+  - assert:
+      that:
+        - enable_name_ssid_check is changed
+        - enable_name_ssid_check.data is defined
 
   - name: Enable and name SSID
     meraki_ssid:
@@ -226,6 +256,59 @@
       that:
         - psk_idempotent is not changed
 
+  #
+  # Check WPA3 Transition Mode
+  #
+  - name: Set WPA3 Transition Mode
+    meraki_ssid:
+      auth_key: '{{auth_key}}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      name: AnsibleSSID
+      auth_mode: psk
+      psk: abc1234567890
+      encryption_mode: wpa
+      wpa_encryption_mode: WPA3 Transition Mode
+    delegate_to: localhost
+    register: psk_wpa3_transition_mode
+    when: wpa_enabled == true
+
+  - debug:
+      msg: '{{ psk_wpa3_transition_mode }}'
+    when: wpa_enabled == True
+
+  - assert:
+      that:
+        - psk_wpa3_transition_mode.data.auth_mode == 'psk'
+        - psk_wpa3_transition_mode.data.encryption_mode == 'wpa'
+        - psk_wpa3_transition_mode.data.wpa_encryption_mode == 'WPA3 Transition Mode'
+    when: wpa_enabled == True
+
+  - name: Set WPA3 Transition Mode with Idempotency
+    meraki_ssid:
+      auth_key: '{{auth_key}}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      name: AnsibleSSID
+      auth_mode: psk
+      psk: abc1234567890
+      encryption_mode: wpa
+      wpa_encryption_mode: WPA3 Transition Mode
+    delegate_to: localhost
+    register: psk_wpa3_transition_mode_idempotent
+    when: wpa_enabled == True
+
+  - debug:
+      msg: '{{ psk_wpa3_transition_mode_idempotent }}'
+    when: wpa_enabled == True
+
+  - assert:
+      that:
+        - psk_wpa3_transition_mode_idempotent is not changed
+    when: wpa_enabled == True
+
   - name: Enable click-through splash page
     meraki_ssid:
       auth_key: '{{auth_key}}'
@@ -243,6 +326,50 @@
   - assert:
       that:
         - splash_click.data.splash_page == 'Click-through splash page'
+
+  - name: Set walled garden
+    meraki_ssid:
+      auth_key: '{{auth_key}}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      name: AnsibleSSID
+      walled_garden_enabled: yes
+      walled_garden_ranges:
+        - 192.168.0.0/24
+        - '*.ansible.com'
+    delegate_to: localhost
+    register: walled_garden
+
+  - debug:
+      msg: '{{ walled_garden }}'
+
+  - assert:
+      that:
+        - 'walled_garden.data.walled_garden_enabled == True'
+        - walled_garden is changed
+
+  - name: Set walled garden with idempotency
+    meraki_ssid:
+      auth_key: '{{auth_key}}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      name: AnsibleSSID
+      walled_garden_enabled: yes
+      walled_garden_ranges:
+        - 192.168.0.0/24
+        - '*.ansible.com'
+    delegate_to: localhost
+    register: walled_garden_idempotent
+
+  - debug:
+      msg: '{{ walled_garden_idempotent }}'
+
+  - assert:
+      that:
+        - walled_garden_idempotent.data is defined
+        - walled_garden_idempotent is not changed
 
   - name: Configure RADIUS servers
     meraki_ssid:
@@ -379,6 +506,22 @@
         - 'set_vlan_arg_err.msg == "default_vlan_id is required when use_vlan_tagging is True"'
 
   always:
+  - name: Delete SSID with check mode
+    meraki_ssid:
+      auth_key: '{{auth_key}}'
+      state: absent
+      org_name: '{{test_org_name}}'
+      net_name: TestNetSSID
+      name: AnsibleSSID
+    delegate_to: localhost
+    register: delete_ssid_check
+    check_mode: yes
+
+  - assert:
+      that:
+        - delete_ssid_check is changed
+        - delete_ssid_check.data is defined
+
   - name: Delete SSID
     meraki_ssid:
       auth_key: '{{auth_key}}'

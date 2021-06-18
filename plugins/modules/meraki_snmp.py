@@ -17,7 +17,6 @@ DOCUMENTATION = r'''
 ---
 module: meraki_snmp
 short_description: Manage organizations in the Meraki cloud
-version_added: "2.6"
 description:
 - Allows for management of SNMP settings for Meraki.
 options:
@@ -57,48 +56,43 @@ options:
         type: str
     peer_ips:
         description:
-        - Semi-colon delimited IP addresses which can perform SNMP queries.
-        type: str
+        - List of IP addresses which can perform SNMP queries.
+        type: list
+        elements: str
     net_name:
         description:
         - Name of network.
         type: str
-        version_added: '2.9'
     net_id:
         description:
         - ID of network.
         type: str
-        version_added: '2.9'
     access:
         description:
         - Type of SNMP access.
         choices: [community, none, users]
         type: str
-        version_added: '2.9'
     community_string:
         description:
         - SNMP community string.
         - Only relevant if C(access) is set to C(community).
         type: str
-        version_added: '2.9'
     users:
         description:
         - Information about users with access to SNMP.
         - Only relevant if C(access) is set to C(users).
         type: list
-        version_added: '2.9'
+        elements: dict
         suboptions:
             username:
                 description: Username of user with access.
                 type: str
-                version_added: '2.9'
             passphrase:
                 description: Passphrase for user SNMP access.
                 type: str
-                version_added: '2.9'
 author:
 - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -172,7 +166,7 @@ data:
             returned: success and no network specified.
             type: str
             sample: n1.meraki.com
-        peerIps:
+        peer_ips:
             description: Semi-colon delimited list of IPs which can poll SNMP information.
             returned: success and no network specified.
             type: str
@@ -235,7 +229,7 @@ data:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, json
-from ansible.module_utils.common.dict_transformations import recursive_diff, snake_dict_to_camel_dict
+from ansible.module_utils.common.dict_transformations import snake_dict_to_camel_dict
 from ansible_collections.cisco.meraki.plugins.module_utils.network.meraki.meraki import MerakiModule, meraki_argument_spec
 
 
@@ -250,20 +244,16 @@ def get_snmp(meraki, org_id):
 
 def set_snmp(meraki, org_id):
     payload = dict()
-    if meraki.params['peer_ips']:
-        if len(meraki.params['peer_ips']) > 7:
-            if ';' not in meraki.params['peer_ips']:
-                meraki.fail_json(msg='Peer IP addresses are semi-colon delimited.')
     if meraki.params['v2c_enabled'] is not None:
         payload = {'v2cEnabled': meraki.params['v2c_enabled'],
                    }
     if meraki.params['v3_enabled'] is True:
         if len(meraki.params['v3_auth_pass']) < 8 or len(meraki.params['v3_priv_pass']) < 8:
             meraki.fail_json(msg='v3_auth_pass and v3_priv_pass must both be at least 8 characters long.')
-        if (meraki.params['v3_auth_mode'] is None or
-                meraki.params['v3_auth_pass'] is None or
-                meraki.params['v3_priv_mode'] is None or
-                meraki.params['v3_priv_pass'] is None):
+        if meraki.params['v3_auth_mode'] is None or \
+           meraki.params['v3_auth_pass'] is None or \
+           meraki.params['v3_priv_mode'] is None or \
+           meraki.params['v3_priv_pass'] is None:
             meraki.fail_json(msg='v3_auth_mode, v3_auth_pass, v3_priv_mode, and v3_auth_pass are required')
         payload = {'v3Enabled': meraki.params['v3_enabled'],
                    'v3AuthMode': meraki.params['v3_auth_mode'].upper(),
@@ -281,20 +271,16 @@ def set_snmp(meraki, org_id):
     ignored_parameters = ['v3AuthPass', 'v3PrivPass', 'hostname', 'port', 'v2CommunityString', 'v3User']
     if meraki.is_update_required(snmp, full_compare, optional_ignore=ignored_parameters):
         if meraki.module.check_mode is True:
-            diff = recursive_diff(snmp, full_compare)
+            meraki.generate_diff(snmp, full_compare)
             snmp.update(payload)
             meraki.result['data'] = snmp
             meraki.result['changed'] = True
-            meraki.result['diff'] = {'before': diff[0],
-                                     'after': diff[1]}
             meraki.exit_json(**meraki.result)
         r = meraki.request(path,
                            method='PUT',
                            payload=json.dumps(payload))
         if meraki.status == 200:
-            diff = recursive_diff(snmp, r)
-            meraki.result['diff'] = {'before': diff[0],
-                                     'after': diff[1]}
+            meraki.generate_diff(snmp, r)
             meraki.result['changed'] = True
             return r
     else:
@@ -317,10 +303,10 @@ def main():
                          v3_auth_pass=dict(type='str', no_log=True),
                          v3_priv_mode=dict(type='str', choices=['DES', 'AES128']),
                          v3_priv_pass=dict(type='str', no_log=True),
-                         peer_ips=dict(type='str'),
+                         peer_ips=dict(type='list', default=None, elements='str'),
                          access=dict(type='str', choices=['none', 'community', 'users']),
                          community_string=dict(type='str', no_log=True),
-                         users=dict(type='list', default=None, element='str', options=user_arg_spec),
+                         users=dict(type='list', default=None, elements='dict', options=user_arg_spec),
                          net_name=dict(type='str'),
                          net_id=dict(type='str'),
                          )
@@ -336,9 +322,9 @@ def main():
     meraki.params['follow_redirects'] = 'all'
 
     query_urls = {'snmp': '/organizations/{org_id}/snmp'}
-    query_net_urls = {'snmp': '/networks/{net_id}/snmpSettings'}
+    query_net_urls = {'snmp': '/networks/{net_id}/snmp'}
     update_urls = {'snmp': '/organizations/{org_id}/snmp'}
-    update_net_urls = {'snmp': '/networks/{net_id}/snmpSettings'}
+    update_net_urls = {'snmp': '/networks/{net_id}/snmp'}
 
     meraki.url_catalog['get_all'].update(query_urls)
     meraki.url_catalog['query_net_all'] = query_net_urls

@@ -1,5 +1,9 @@
+changelogs/.plugin-cache.yaml
 *tar.gz
 inventory.networking
 *.pyc
 .DS_Store
 tests/output/*
+.vscode
+.env
+venv

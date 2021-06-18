@@ -29,6 +29,24 @@
     register: create_net_no_org
     ignore_errors: yes
 
+  - name: Create network with type switch with check mode
+    meraki_network:
+      auth_key: '{{ auth_key }}'
+      state: present
+      org_name: '{{test_org_name}}'
+      net_name: IntTestNetworkSwitch
+      type: switch
+      timezone: America/Chicago
+    delegate_to: localhost
+    check_mode: yes
+    register: create_net_switch_check
+
+  - assert:
+      that:
+        - create_net_switch_check is changed
+        - create_net_switch_check.data is defined
+        - create_net_switch_check.data.organization_id == "{{test_org_id |string}}"
+
   - name: Create network with type switch
     meraki_network:
       auth_key: '{{ auth_key }}'
@@ -61,6 +79,22 @@
     delegate_to: localhost
     register: create_net_appliance_no_tz
 
+  - name: Enable VLAN support on appliance network with check mode
+    meraki_network:
+      auth_key: '{{ auth_key }}'
+      state: present
+      org_name: '{{ test_org_name }}'
+      net_name: IntTestNetworkAppliance
+      enable_vlans: yes
+    delegate_to: localhost
+    check_mode: yes
+    register: enable_vlan_check
+
+  - assert:
+      that:
+        - enable_vlan_check.data.vlans_enabled == True
+        - enable_vlan_check is changed
+
   - name: Enable VLAN support on appliance network
     meraki_network:
       auth_key: '{{ auth_key }}'
@@ -73,7 +107,7 @@
 
   - assert:
       that:
-        - enable_vlan.data.enabled == True
+        - enable_vlan.data.vlans_enabled == True
 
   - name: Enable VLAN support on appliance network with idempotency
     meraki_network:
@@ -84,9 +118,6 @@
       enable_vlans: yes
     delegate_to: localhost
     register: enable_vlan_idempotent
-
-  - debug:
-      var: enable_vlan_idempotent
 
   - assert:
       that:
@@ -105,7 +136,7 @@
 
   - assert:
       that:
-        - disable_vlan.data.enabled == False
+        - disable_vlan.data.vlans_enabled == False
 
   - name: Disable VLAN support on appliance network with idempotency
     meraki_network:
@@ -122,7 +153,52 @@
         - disable_vlan_idempotent is not changed
         - disable_vlan_idempotent.data is defined
 
-  - name: Create network with type wireless and disable my.meraki.com
+  - name: Change local page settings with check mode
+    meraki_network:
+      auth_key: '{{ auth_key }}'
+      state: present
+      org_name: '{{ test_org_name }}'
+      net_name: IntTestNetworkAppliance
+      local_status_page_enabled: False
+    delegate_to: localhost
+    check_mode: True
+    register: disable_local_page_check
+
+  - assert:
+      that:
+        - disable_local_page_check is changed
+
+  - name: Change local page settings
+    meraki_network:
+      auth_key: '{{ auth_key }}'
+      state: present
+      org_name: '{{ test_org_name }}'
+      net_name: IntTestNetworkAppliance
+      local_status_page_enabled: False
+    delegate_to: localhost
+    register: disable_local_page
+
+  - assert:
+      that:
+        - disable_local_page is changed
+        - disable_local_page.data is defined
+
+  - name: Change local page settings with idempotency
+    meraki_network:
+      auth_key: '{{ auth_key }}'
+      state: present
+      org_name: '{{ test_org_name }}'
+      net_name: IntTestNetworkAppliance
+      local_status_page_enabled: False
+    delegate_to: localhost
+    register: disable_local_page_idempotent
+
+  - assert:
+      that:
+        - disable_local_page_idempotent is not changed
+        - disable_local_page_idempotent.data is defined
+
+  - name: Create network with type wireless
     meraki_network:
       auth_key: '{{ auth_key }}'
       state: present
@@ -130,11 +206,14 @@
       net_name: IntTestNetworkWireless
       type: wireless
       timezone: America/Chicago
-      disable_my_meraki: yes
     delegate_to: localhost
     register: create_net_wireless
 
-  - name: Create network with type wireless, disable my.meraki.com, and check for idempotency
+  - assert:
+      that:
+        - '"IntTestNetworkWireless" in create_net_wireless.data.name'
+
+  - name: Create network with type wireless and check for idempotency
     meraki_network:
       auth_key: '{{ auth_key }}'
       state: present
@@ -142,15 +221,15 @@
       net_name: IntTestNetworkWireless
       type: wireless
       timezone: America/Chicago
-      disable_my_meraki: yes
     delegate_to: localhost
     register: create_net_wireless_idempotent
 
   - assert:
       that:
+        - create_net_wireless_idempotent.changed == False
         - create_net_wireless_idempotent.data is defined
 
-  - name: Create network with type combined and disable my.meraki.com
+  - name: Create network with type combined
     meraki_network:
       auth_key: '{{ auth_key }}'
       state: present
@@ -160,62 +239,12 @@
         - appliance
         - switch
       timezone: America/Chicago
-      enable_my_meraki: no
     delegate_to: localhost
     register: create_net_combined
 
-  - name: Reenable my.meraki.com
-    meraki_network:
-      auth_key: '{{ auth_key }}'
-      state: present
-      org_name: '{{test_org_name}}'
-      net_name: IntTestNetworkCombined
-      enable_my_meraki: yes
-    delegate_to: localhost
-    register: enable_meraki_com
-
-  - name: Disable my.meraki.com for next test
-    meraki_network:
-      auth_key: '{{ auth_key }}'
-      state: present
-      org_name: '{{test_org_name}}'
-      net_name: IntTestNetworkCombined
-      enable_my_meraki: no
-    delegate_to: localhost
-
-  - name: Enable remote status page
-    meraki_network:
-      auth_key: '{{ auth_key }}'
-      state: present
-      org_name: '{{test_org_name}}'
-      net_name: IntTestNetworkCombined
-      enable_remote_status_page: yes
-    delegate_to: localhost
-    register: disable_remote_status
-
-  - debug:
-      msg: '{{disable_remote_status}}'
-
   - assert:
       that:
-        - disable_remote_status.data.disable_remote_status_page == False
-
-  - name: Disable remote status page
-    meraki_network:
-      auth_key: '{{ auth_key }}'
-      state: present
-      org_name: '{{test_org_name}}'
-      net_name: IntTestNetworkCombined
-      enable_remote_status_page: no
-    delegate_to: localhost
-    register: enable_remote_status
-
-  - debug:
-      msg: '{{enable_remote_status}}'
-
-  - assert:
-      that:
-        - enable_remote_status.data.disable_remote_status_page == True
+        - create_net_combined.data.product_types | length > 1
 
   - name: Test status pages are mutually exclusive when on
     meraki_network:
@@ -223,8 +252,8 @@
       state: present
       org_name: '{{test_org_name}}'
       net_name: IntTestNetworkCombined
-      enable_my_meraki: yes
-      enable_remote_status_page: no
+      local_status_page_enabled: yes
+      remote_status_page_enabled: no
     delegate_to: localhost
     register: status_exclusivity
     ignore_errors: yes
@@ -299,24 +328,31 @@
   - name: Present assertions
     assert:
       that:
-        - create_net_combined.data.type == 'combined'
-        - create_net_combined.data.disable_my_meraki_com == True
-        - enable_meraki_com.data.disable_my_meraki_com == False
         - '"org_name or org_id parameters are required" in create_net_no_org.msg'
         - '"IntTestNetworkAppliance" in create_net_appliance_no_tz.data.name'
         - create_net_appliance_no_tz.changed == True
         - '"IntTestNetworkSwitch" in create_net_switch.data.name'
         - '"IntTestNetworkSwitchOrgID" in create_net_switch_org_id.data.name'
-        - '"IntTestNetworkWireless" in create_net_wireless.data.name'
-        - create_net_wireless.data.disable_my_meraki_com == True
-        - create_net_wireless_idempotent.changed == False
-        - create_net_wireless_idempotent.data is defined
         - '"first_tag" in create_net_tag.data.tags'
         - '"second_tag" in create_net_tags.data.tags'
         - '"third_tag" in create_net_modified.data.tags'
         - create_net_modified.changed == True
         - create_net_modified_idempotent.changed == False
         - create_net_modified_idempotent.data is defined
+
+  - name: Query network settings
+    meraki_network:
+      auth_key: '{{auth_key}}'
+      state: query
+      org_name: '{{test_org_name}}'
+      net_name: '{{test_template_name}}'
+      local_status_page_enabled: yes
+    delegate_to: localhost
+    register: query_settings
+
+  - assert:
+      that:
+        - query_settings.data is defined
 
   - name: Query all networks
     meraki_network:
@@ -362,6 +398,21 @@
     delegate_to: localhost
     register: delete_all_no_org
     ignore_errors: yes
+      
+  - name: Delete network by org ID and check mode
+    meraki_network:
+      auth_key: '{{ auth_key }}'
+      state: absent
+      org_id: '{{test_org_id}}'
+      net_name: IntTestNetworkSwitchOrgID
+    delegate_to: localhost
+    check_mode: yes
+    register: delete_net_org_id_check
+
+  - assert:
+      that:
+        - delete_net_org_id_check is changed
+        - delete_net_org_id_check.data is defined
       
   - name: Delete network by org ID
     meraki_network:

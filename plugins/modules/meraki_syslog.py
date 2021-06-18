@@ -17,7 +17,6 @@ DOCUMENTATION = r'''
 ---
 module: meraki_syslog
 short_description: Manage syslog server settings in the Meraki cloud.
-version_added: "2.8"
 description:
 - Allows for creation and management of Syslog servers within Meraki.
 notes:
@@ -48,6 +47,7 @@ options:
         description:
         - List of syslog server settings
         type: list
+        elements: dict
         suboptions:
             host:
                 description:
@@ -70,10 +70,11 @@ options:
                           'IDS alerts',
                           'Security events']
                 type: list
+                elements: str
 
 author:
     - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -123,25 +124,29 @@ data:
     returned: info
     type: complex
     contains:
-      host:
-        description: Hostname or IP address of syslog server.
-        returned: success
-        type: str
-        sample: 192.0.1.1
-      port:
-        description: Port number for syslog communication.
-        returned: success
-        type: str
-        sample: 443
-      roles:
-        description: List of roles assigned to syslog server.
-        returned: success
-        type: list
-        sample: "Wireless event log, URLs"
+      servers:
+        description: List of syslog servers.
+        returned: info
+        type: complex
+        contains:
+          host:
+            description: Hostname or IP address of syslog server.
+            returned: success
+            type: str
+            sample: 192.0.1.1
+          port:
+            description: Port number for syslog communication.
+            returned: success
+            type: str
+            sample: 443
+          roles:
+            description: List of roles assigned to syslog server.
+            returned: success
+            type: list
+            sample: "Wireless event log, URLs"
 '''
 
 from ansible.module_utils.basic import AnsibleModule, json
-from ansible.module_utils.common.dict_transformations import recursive_diff
 from ansible_collections.cisco.meraki.plugins.module_utils.network.meraki.meraki import MerakiModule, meraki_argument_spec
 
 
@@ -152,20 +157,20 @@ def main():
 
     server_arg_spec = dict(host=dict(type='str'),
                            port=dict(type='int', default="514"),
-                           roles=dict(type='list', choices=['Wireless Event log',
-                                                            'Appliance event log',
-                                                            'Switch event log',
-                                                            'Air Marshal events',
-                                                            'Flows',
-                                                            'URLs',
-                                                            'IDS alerts',
-                                                            'Security events',
-                                                            ]),
+                           roles=dict(type='list', elements='str', choices=['Wireless Event log',
+                                                                            'Appliance event log',
+                                                                            'Switch event log',
+                                                                            'Air Marshal events',
+                                                                            'Flows',
+                                                                            'URLs',
+                                                                            'IDS alerts',
+                                                                            'Security events',
+                                                                            ]),
                            )
 
     argument_spec = meraki_argument_spec()
     argument_spec.update(net_id=dict(type='str'),
-                         servers=dict(type='list', element='dict', options=server_arg_spec),
+                         servers=dict(type='list', elements='dict', options=server_arg_spec),
                          state=dict(type='str', choices=['present', 'query'], default='present'),
                          net_name=dict(type='str', aliases=['name', 'network']),
                          )
@@ -225,21 +230,19 @@ def main():
         path = meraki.construct_path('query_update', net_id=net_id)
         r = meraki.request(path, method='GET')
         if meraki.status == 200:
-            original = dict()
-            original['servers'] = r
+            original = r
 
         if meraki.is_update_required(original, payload):
             if meraki.module.check_mode is True:
-                diff = recursive_diff(original, payload)
+                meraki.generate_diff(original, payload)
                 original.update(payload)
-                meraki.result['diff'] = {'before': diff[0],
-                                         'after': diff[1]}
                 meraki.result['data'] = original
                 meraki.result['changed'] = True
                 meraki.exit_json(**meraki.result)
             path = meraki.construct_path('query_update', net_id=net_id)
             r = meraki.request(path, method='PUT', payload=json.dumps(payload))
             if meraki.status == 200:
+                meraki.generate_diff(original, r)
                 meraki.result['data'] = r
                 meraki.result['changed'] = True
         else:

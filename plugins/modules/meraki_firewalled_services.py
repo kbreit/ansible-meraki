@@ -17,7 +17,6 @@ DOCUMENTATION = r'''
 ---
 module: meraki_firewalled_services
 short_description: Edit firewall policies for administrative network services
-version_added: "2.9"
 description:
 - Allows for setting policy firewalled services for Meraki network devices.
 
@@ -64,10 +63,11 @@ options:
         - List of IP addresses allowed to access a service.
         - Only used when C(access) is set to restricted.
         type: list
+        elements: str
 
 author:
     - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -136,7 +136,6 @@ data:
 '''
 
 from ansible.module_utils.basic import AnsibleModule, json
-from ansible.module_utils.common.dict_transformations import recursive_diff
 from ansible_collections.cisco.meraki.plugins.module_utils.network.meraki.meraki import MerakiModule, meraki_argument_spec
 
 
@@ -152,7 +151,7 @@ def main():
         state=dict(type='str', default='present', choices=['query', 'present']),
         service=dict(type='str', default=None, choices=['ICMP', 'SNMP', 'web']),
         access=dict(type='str', choices=['blocked', 'restricted', 'unrestricted']),
-        allowed_ips=dict(type='list', element='str'),
+        allowed_ips=dict(type='list', elements='str'),
     )
 
     mutually_exclusive = [('net_name', 'net_id')]
@@ -169,8 +168,8 @@ def main():
     meraki = MerakiModule(module, function='firewalled_services')
     module.params['follow_redirects'] = 'all'
 
-    net_services_urls = {'firewalled_services': '/networks/{net_id}/firewalledServices'}
-    services_urls = {'firewalled_services': '/networks/{net_id}/firewalledServices/{service}'}
+    net_services_urls = {'firewalled_services': '/networks/{net_id}/appliance/firewall/firewalledServices'}
+    services_urls = {'firewalled_services': '/networks/{net_id}/appliance/firewall/firewalledServices/{service}'}
 
     meraki.url_catalog['network_services'] = net_services_urls
     meraki.url_catalog['service'] = services_urls
@@ -211,19 +210,15 @@ def main():
             if meraki.check_mode is True:
                 diff_payload = {'service': meraki.params['service']}  # Need to add service as it's not in payload
                 diff_payload.update(payload)
-                diff = recursive_diff(original, diff_payload)
+                meraki.generate_diff(original, diff_payload)
                 original.update(payload)
-                meraki.result['diff'] = {'before': diff[0],
-                                         'after': diff[1]}
                 meraki.result['data'] = original
                 meraki.result['changed'] = True
                 meraki.exit_json(**meraki.result)
             path = meraki.construct_path('service', net_id=net_id, custom={'service': meraki.params['service']})
             response = meraki.request(path, method='PUT', payload=json.dumps(payload))
             if meraki.status == 200:
-                diff = recursive_diff(original, response)
-                meraki.result['diff'] = {'before': diff[0],
-                                         'after': diff[1]}
+                meraki.generate_diff(original, response)
                 meraki.result['data'] = response
                 meraki.result['changed'] = True
         else:

@@ -7,13 +7,12 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 import time
-import os
 import re
-from ansible.module_utils.basic import AnsibleModule, json, env_fallback
-from ansible.module_utils.common.dict_transformations import camel_dict_to_snake_dict
+from ansible.module_utils.basic import json, env_fallback
+from ansible.module_utils.common.dict_transformations import camel_dict_to_snake_dict, snake_dict_to_camel_dict, recursive_diff
 from ansible.module_utils.urls import fetch_url
 from ansible.module_utils.six.moves.urllib.parse import urlencode
-from ansible.module_utils._text import to_native, to_bytes, to_text
+from ansible.module_utils._text import to_native
 
 
 RATE_LIMIT_RETRY_MULTIPLIER = 3
@@ -49,58 +48,6 @@ class InternalErrorException(Exception):
 class HTTPError(Exception):
     def __init__(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
-
-
-def _error_report(function):
-    def inner(self, *args, **kwargs):
-        while True:
-            try:
-                response = function(self, *args, **kwargs)
-                if self.status == 429:
-                    raise RateLimitException(
-                        "Rate limiter hit, retry {0}".format(self.retry))
-                elif self.status == 500:
-                    raise InternalErrorException(
-                        "Internal server error 500, retry {0}".format(self.retry))
-                elif self.status == 502:
-                    raise InternalErrorException(
-                        "Internal server error 502, retry {0}".format(self.retry))
-                elif self.status == 400:
-                    raise HTTPError("")
-                elif self.status >= 400:
-                    raise HTTPError("")
-                self.retry = 0  # Needs to reset in case of future retries
-                return response
-            except RateLimitException as e:
-                self.retry += 1
-                if self.retry <= 10:
-                    self.retry_time += self.retry * RATE_LIMIT_RETRY_MULTIPLIER
-                    time.sleep(self.retry * RATE_LIMIT_RETRY_MULTIPLIER)
-                else:
-                    self.retry_time += 30
-                    time.sleep(30)
-                if self.retry_time > self.params['rate_limit_retry_time']:
-                    raise RateLimitException(e)
-            except InternalErrorException as e:
-                self.retry += 1
-                if self.retry <= 10:
-                    self.retry_time += self.retry * INTERNAL_ERROR_RETRY_MULTIPLIER
-                    time.sleep(self.retry * INTERNAL_ERROR_RETRY_MULTIPLIER)
-                else:
-                    self.retry_time += 9
-                    time.sleep(9)
-                if self.retry_time > self.params['internal_error_retry_time']:
-                    raise InternalErrorException(e)
-            except HTTPError as e:
-                try:
-                    self.fail_json(msg="HTTP error {0} - {1} - {2}".format(self.status, self.url, json.loads(self.body)['errors']),
-                                   body=json.loads(self.body))
-                except json.decoder.JSONDecodeError:
-                    self.fail_json(msg="HTTP error {0} - {1}".format(self.status, self.url))
-    try:
-        return inner
-    except HTTPError:
-        pass
 
 
 class MerakiModule(object):
@@ -181,7 +128,7 @@ class MerakiModule(object):
         self.modifiable_methods = ['POST', 'PUT', 'DELETE']
 
         self.headers = {'Content-Type': 'application/json',
-                        'X-Cisco-Meraki-API-Key': module.params['auth_key'],
+                        'Authorization': 'Bearer {key}'.format(key=module.params['auth_key']),
                         }
 
     def define_protocol(self):
@@ -200,7 +147,7 @@ class MerakiModule(object):
                     items[self.key_map[k]] = self.sanitize_keys(data[k])
                 except KeyError:
                     snake_k = re.sub('([a-z0-9])([A-Z])', r'\1_\2', k).lower()
-                    new = {snake_k: data[k]}
+                    # new = {snake_k: data[k]}
                     items[snake_k] = self.sanitize_keys(data[k])
             return items
         elif isinstance(data, list):
@@ -211,37 +158,55 @@ class MerakiModule(object):
         elif isinstance(data, int) or isinstance(data, str) or isinstance(data, float):
             return data
 
-    def is_update_required(self, original, proposed, optional_ignore=None):
+    def is_update_required(self, original, proposed, optional_ignore=None, debug=False):
         ''' Compare two data-structures '''
         self.ignored_keys.append('net_id')
         if optional_ignore is not None:
+            # self.fail_json(msg="Keys", ignored_keys=self.ignored_keys, optional=optional_ignore)
             self.ignored_keys = self.ignored_keys + optional_ignore
 
         if isinstance(original, list):
             if len(original) != len(proposed):
-                # self.fail_json(msg="Length of lists don't match")
+                if debug is True:
+                    self.fail_json(msg="Length of lists don't match")
                 return True
             for a, b in zip(original, proposed):
-                if self.is_update_required(a, b):
-                    # self.fail_json(msg="List doesn't match", a=a, b=b)
+                if self.is_update_required(a, b, debug=debug):
+                    if debug is True:
+                        self.fail_json(msg="List doesn't match", a=a, b=b)
                     return True
         elif isinstance(original, dict):
             try:
                 for k, v in proposed.items():
                     if k not in self.ignored_keys:
                         if k in original:
-                            if self.is_update_required(original[k], proposed[k]):
+                            if self.is_update_required(original[k], proposed[k], debug=debug):
                                 return True
                         else:
-                            # self.fail_json(msg="Key not in original", k=k)
+                            if debug is True:
+                                self.fail_json(msg="Key not in original", k=k)
                             return True
             except AttributeError:
                 return True
         else:
             if original != proposed:
-                # self.fail_json(msg="Fallback", original=original, proposed=proposed)
+                if debug is True:
+                    self.fail_json(msg="Fallback", original=original, proposed=proposed)
                 return True
         return False
+
+    def generate_diff(self, before, after):
+        """Creates a diff based on two objects. Applies to the object and returns nothing.
+        """
+        try:
+            diff = recursive_diff(before, after)
+            self.result['diff'] = {'before': diff[0],
+                                   'after': diff[1]}
+        except AttributeError:  # Normally for passing a list instead of a dict
+            diff = recursive_diff({'data': before},
+                                  {'data': after})
+            self.result['diff'] = {'before': diff[0]['data'],
+                                   'after': diff[1]['data']}
 
     def get_orgs(self):
         """Downloads all organizations for a user."""
@@ -292,8 +257,8 @@ class MerakiModule(object):
         """Downloads all networks in an organization."""
         if org_name:
             org_id = self.get_org_id(org_name)
-        path = self.construct_path('get_all', org_id=org_id, function='network')
-        r = self.request(path, method='GET')
+        path = self.construct_path('get_all', org_id=org_id, function='network', params={'perPage': '1000'})
+        r = self.request(path, method='GET', pagination_items=1000)
         if self.status != 200:
             self.fail_json(msg='Network lookup failed')
         self.nets = r
@@ -353,6 +318,20 @@ class MerakiModule(object):
         else:
             return data
 
+    def convert_snake_to_camel(self, data):
+        """
+        Converts a dictionary or list to camel case from snake case
+        :type data: dict or list
+        :return: Converted data structure, if list or dict
+        """
+
+        if isinstance(data, dict):
+            return snake_dict_to_camel_dict(data)
+        elif isinstance(data, list):
+            return [snake_dict_to_camel_dict(item) for item in data]
+        else:
+            return data
+
     def construct_params_list(self, keys, aliases=None):
         qs = {}
         for key in keys:
@@ -392,31 +371,113 @@ class MerakiModule(object):
             built_path += self.encode_url_params(params)
         return built_path
 
-    @_error_report
-    def request(self, path, method=None, payload=None):
-        """Generic HTTP method for Meraki requests."""
+    def _set_url(self, path, method, params):
         self.path = path
         self.define_protocol()
 
         if method is not None:
             self.method = method
-        self.url = '{protocol}://{host}/api/v0/{path}'.format(path=self.path.lstrip('/'), **self.params)
-        resp, info = fetch_url(self.module, self.url,
-                               headers=self.headers,
-                               data=payload,
-                               method=self.method,
-                               timeout=self.params['timeout'],
-                               use_proxy=self.params['use_proxy'],
-                               )
-        if 'body' in info:
-            self.body = info['body']
-        self.response = info['msg']
-        self.status = info['status']
+
+        self.url = '{protocol}://{host}/api/v1/{path}'.format(path=self.path.lstrip('/'), **self.params)
+
+    @staticmethod
+    def _parse_pagination_header(link):
+        rels = {'first': None,
+                'next': None,
+                'prev': None,
+                'last': None
+                }
+        for rel in link.split(','):
+            kv = rel.split('rel=')
+            rels[kv[1]] = kv[0].split('<')[1].split('>')[0].strip()  # This should return just the URL for <url>
+        return rels
+
+    def _execute_request(self, path, method=None, payload=None, params=None):
+        """ Execute query """
+        try:
+            resp, info = fetch_url(self.module, self.url,
+                                   headers=self.headers,
+                                   data=payload,
+                                   method=self.method,
+                                   timeout=self.params['timeout'],
+                                   use_proxy=self.params['use_proxy'],
+                                   )
+            self.status = info['status']
+
+            if self.status == 429:
+                self.retry += 1
+                if self.retry <= 10:
+                    # retry-after isn't returned for over 10 concurrent connections per IP
+                    try:
+                        self.module.warn("Rate limiter hit, retry {0}...pausing for {1} seconds".format(self.retry, info['Retry-After']))
+                        time.sleep(info['Retry-After'])
+                    except KeyError:
+                        self.module.warn("Rate limiter hit, retry {0}...pausing for 5 seconds".format(self.retry))
+                        time.sleep(5)
+                    return self._execute_request(path, method=method, payload=payload, params=params)
+                else:
+                    self.fail_json(msg="Rate limit retries failed for {url}".format(url=self.url))
+            elif self.status == 500:
+                self.retry += 1
+                self.module.warn("Internal server error 500, retry {0}".format(self.retry))
+                if self.retry <= 10:
+                    self.retry_time += self.retry * INTERNAL_ERROR_RETRY_MULTIPLIER
+                    time.sleep(self.retry_time)
+                    return self._execute_request(path, method=method, payload=payload, params=params)
+                else:
+                    # raise RateLimitException(e)
+                    self.fail_json(msg="Rate limit retries failed for {url}".format(url=self.url))
+            elif self.status == 502:
+                self.module.warn("Internal server error 502, retry {0}".format(self.retry))
+            elif self.status == 400:
+                raise HTTPError("")
+            elif self.status >= 400:
+                self.fail_json(msg=self.status, url=self.url)
+                raise HTTPError("")
+        except HTTPError:
+            try:
+                self.fail_json(msg="HTTP error {0} - {1} - {2}".format(self.status, self.url, json.loads(info['body'])['errors'][0]))
+            except json.decoder.JSONDecodeError:
+                self.fail_json(msg="HTTP error {0} - {1}".format(self.status, self.url))
+        self.retry = 0  # Needs to reset in case of future retries
+        return resp, info
+
+    def request(self, path, method=None, payload=None, params=None, pagination_items=None):
+        """ Submit HTTP request to Meraki API """
+        self._set_url(path, method, params)
 
         try:
-            return json.loads(to_native(resp.read()))
-        except Exception:
-            pass
+            # Gather the body (resp) and header (info)
+            resp, info = self._execute_request(path, method=method, payload=payload, params=params)
+        except HTTPError:
+            self.fail_json(msg="HTTP request to {url} failed with error code {code}".format(url=self.url, code=self.status))
+        self.response = info['msg']
+        self.status = info['status']
+        # This needs to be refactored as it's not very clean
+        # Looping process for pagination
+        if pagination_items is not None:
+            data = None
+            if 'body' in info:
+                self.body = info['body']
+            data = json.loads(to_native(resp.read()))
+            header_link = self._parse_pagination_header(info['link'])
+            while header_link['next'] is not None:
+                self.url = header_link['next']
+                try:
+                    # Gather the body (resp) and header (info)
+                    resp, info = self._execute_request(header_link['next'], method=method, payload=payload, params=params)
+                except HTTPError:
+                    self.fail_json(msg="HTTP request to {url} failed with error code {code}".format(url=self.url, code=self.status))
+                header_link = self._parse_pagination_header(info['link'])
+                data.extend(json.loads(to_native(resp.read())))
+            return data
+        else:  # Non-pagination
+            if 'body' in info:
+                self.body = info['body']
+            try:
+                return json.loads(to_native(resp.read()))
+            except json.decoder.JSONDecodeError:
+                return {}
 
     def exit_json(self, **kwargs):
         """Custom written method to exit from module."""
@@ -430,11 +491,14 @@ class MerakiModule(object):
             self.result['url'] = self.url
         self.result.update(**kwargs)
         if self.params['output_format'] == 'camelcase':
-            self.module.deprecate("Update your playbooks to support snake_case format instead of camelCase format.", version=2.13)
+            self.module.deprecate("Update your playbooks to support snake_case format instead of camelCase format.",
+                                  date="2022-06-01",
+                                  collection_name="cisco.meraki")
         else:
             if 'data' in self.result:
                 try:
                     self.result['data'] = self.convert_camel_to_snake(self.result['data'])
+                    self.result['diff'] = self.convert_camel_to_snake(self.result['diff'])
                 except (KeyError, AttributeError):
                     pass
         self.module.exit_json(**self.result)

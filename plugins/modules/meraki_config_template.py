@@ -17,7 +17,7 @@ DOCUMENTATION = r'''
 ---
 module: meraki_config_template
 short_description: Manage configuration templates in the Meraki cloud
-version_added: "2.7"
+version_added: "1.0.0"
 description:
 - Allows for querying, deleting, binding, and unbinding of configuration templates.
 notes:
@@ -61,7 +61,7 @@ options:
 
 author:
 - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -106,15 +106,26 @@ data:
     type: complex
     contains:
         id:
-          description: Unique identification number of organization
+          description: Unique identification number of organization.
           returned: success
           type: int
           sample: L_2930418
         name:
-          description: Name of configuration template
+          description: Name of configuration template.
           returned: success
           type: str
           sample: YourTemplate
+        product_types:
+          description: List of products which can exist in the network.
+          returned: success
+          type: list
+          sample: [ "appliance", "switch" ]
+        time_zone:
+          description: Timezone applied to each associated network.
+          returned: success
+          type: str
+          sample: "America/Chicago"
+
 '''
 
 from ansible.module_utils.basic import AnsibleModule, json
@@ -211,8 +222,6 @@ def main():
     meraki.url_catalog['delete'] = delete_urls
     meraki.url_catalog['bind'] = bind_urls
     meraki.url_catalog['unbind'] = unbind_urls
-
-    payload = None
 
     # if the user is working with this module in only check mode we do not
     # want to make any changes to the environment, just return the current

@@ -17,7 +17,7 @@ DOCUMENTATION = r'''
 ---
 module: meraki_admin
 short_description: Manage administrators in the Meraki cloud
-version_added: '2.6'
+version_added: '1.0.0'
 description:
 - Allows for creation, management, and visibility into administrators within Meraki.
 options:
@@ -44,6 +44,7 @@ options:
         - When creating a new administrator, C(org_name), C(network), or C(tags) must be specified.
         - If C(none) is specified, C(network) or C(tags) must be specified.
         type: list
+        elements: dict
         suboptions:
             tag:
                 description:
@@ -58,10 +59,15 @@ options:
         - List of networks the administrator has privileges on.
         - When creating a new administrator, C(org_name), C(network), or C(tags) must be specified.
         type: list
+        elements: dict
         suboptions:
             id:
                 description:
                 - Network ID for which administrator should have privileges assigned.
+                type: str
+            network:
+                description:
+                - Network name for which administrator should have privileges assigned.
                 type: str
             access:
                 description:
@@ -84,7 +90,7 @@ options:
         type: str
 author:
     - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -251,7 +257,6 @@ data:
 
 import os
 from ansible.module_utils.basic import AnsibleModule, json
-from ansible.module_utils.common.dict_transformations import recursive_diff
 from ansible_collections.cisco.meraki.plugins.module_utils.network.meraki.meraki import MerakiModule, meraki_argument_spec
 
 
@@ -311,11 +316,17 @@ def delete_admin(meraki, org_id, admin_id):
 def network_factory(meraki, networks, nets):
     networks_new = []
     for n in networks:
-        networks_new.append({'id': meraki.get_net_id(org_name=meraki.params['org_name'],
-                                                     net_name=n['network'],
-                                                     data=nets),
-                             'access': n['access']
-                             })
+        if 'network' in n and n['network'] is not None:
+            networks_new.append({'id': meraki.get_net_id(org_name=meraki.params['org_name'],
+                                                         net_name=n['network'],
+                                                         data=nets),
+                                 'access': n['access']
+                                 })
+        elif 'id' in n:
+            networks_new.append({'id': n['id'],
+                                 'access': n['access']
+                                 })
+
     return networks_new
 
 
@@ -354,11 +365,8 @@ def create_admin(meraki, org_id, name, email):
             payload['networks'] = []
         if meraki.is_update_required(is_admin_existing, payload) is True:
             if meraki.module.check_mode is True:
-                diff = recursive_diff(is_admin_existing, payload)
+                meraki.generate_diff(is_admin_existing, payload)
                 is_admin_existing.update(payload)
-                meraki.result['diff'] = {'before': diff[0],
-                                         'after': diff[1],
-                                         }
                 meraki.result['changed'] = True
                 meraki.result['data'] = payload
                 meraki.exit_json(**meraki.result)
@@ -383,6 +391,7 @@ def main():
     # the module
 
     network_arg_spec = dict(id=dict(type='str'),
+                            network=dict(type='str'),
                             access=dict(type='str'),
                             )
 
@@ -395,8 +404,8 @@ def main():
                          name=dict(type='str'),
                          email=dict(type='str'),
                          org_access=dict(type='str', aliases=['orgAccess'], choices=['full', 'read-only', 'none']),
-                         tags=dict(type='list', element='dict', options=tag_arg_spec),
-                         networks=dict(type='list', element='dict', options=network_arg_spec),
+                         tags=dict(type='list', elements='dict', options=tag_arg_spec),
+                         networks=dict(type='list', elements='dict', options=network_arg_spec),
                          org_name=dict(type='str', aliases=['organization']),
                          org_id=dict(type='str'),
                          )

@@ -17,7 +17,6 @@ DOCUMENTATION = r'''
 ---
 module: meraki_mx_l7_firewall
 short_description: Manage MX appliance layer 7 firewalls in the Meraki cloud
-version_added: "2.9"
 description:
 - Allows for creation, management, and visibility into layer 7 firewalls implemented on Meraki MX firewalls.
 notes:
@@ -42,6 +41,7 @@ options:
         description:
         - List of layer 7 firewall rules.
         type: list
+        elements: dict
         suboptions:
             policy:
                 description:
@@ -54,11 +54,11 @@ options:
                 - Type of policy to apply.
                 choices: [application,
                           application_category,
-                          blacklisted_countries,
+                          blocked_countries,
                           host,
                           ip_range,
                           port,
-                          whitelisted_countries]
+                          allowed_countries]
                 type: str
             application:
                 description:
@@ -91,13 +91,14 @@ options:
                 - List of countries to whitelist or blacklist.
                 - The countries follow the two-letter ISO 3166-1 alpha-2 format.
                 type: list
+                elements: str
     categories:
         description:
         - When C(True), specifies that applications and application categories should be queried instead of firewall rules.
         type: bool
 author:
 - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -125,11 +126,11 @@ EXAMPLES = r'''
     net_name: YourNet
     state: present
     rules:
-      - type: whitelisted_countries
+      - type: allowed_countries
         countries:
           - US
           - FR
-      - type: blacklisted_countries
+      - type: blocked_countries
         countries:
           - CN
       - policy: deny
@@ -207,12 +208,12 @@ data:
                     returned: success
                     type: str
                     sample: 1.1.1.0/23
-                whitelistedCountries:
-                    description: Countries to be whitelisted.
+                allowedCountries:
+                    description: Countries to be allowed.
                     returned: success
                     type: str
                     sample: CA
-                blacklistedCountries:
+                blockedCountries:
                     description: Countries to be blacklisted.
                     returned: success
                     type: str
@@ -250,7 +251,6 @@ data:
 
 import copy
 from ansible.module_utils.basic import AnsibleModule, json
-from ansible.module_utils.common.dict_transformations import recursive_diff
 from ansible_collections.cisco.meraki.plugins.module_utils.network.meraki.meraki import MerakiModule, meraki_argument_spec
 
 
@@ -299,14 +299,14 @@ def assemble_payload(meraki, net_id, rule):
         new_rule = {'policy': rule['policy'],
                     'type': rule['type'],
                     'value': rule['port']}
-    elif rule['type'] == 'blacklisted_countries':
+    elif rule['type'] == 'blocked_countries':
         new_rule = {'policy': rule['policy'],
-                    'type': 'blacklistedCountries',
+                    'type': 'blockedCountries',
                     'value': rule['countries']
                     }
-    elif rule['type'] == 'whitelisted_countries':
+    elif rule['type'] == 'allowed_countries':
         new_rule = {'policy': rule['policy'],
-                    'type': 'whitelistedCountries',
+                    'type': 'allowedCountries',
                     'value': rule['countries']
                     }
     return new_rule
@@ -329,7 +329,6 @@ def get_rules(meraki, net_id):
 
 def rename_id_to_appid(rules):
     for rule in rules['rules']:
-        print(rule['type'])
         if rule['type'] == 'application' or rule['type'] == 'applicationCategory':
             rule['value']['appId'] = rule['value'].pop('id')
     return rules
@@ -353,16 +352,16 @@ def main():
     rule_arg_spec = dict(policy=dict(type='str', choices=['deny'], default='deny'),
                          type=dict(type='str', choices=['application',
                                                         'application_category',
-                                                        'blacklisted_countries',
+                                                        'blocked_countries',
                                                         'host',
                                                         'ip_range',
                                                         'port',
-                                                        'whitelisted_countries']),
+                                                        'allowed_countries']),
                          ip_range=dict(type='str'),
                          application=dict(type='dict', default=None, options=application_arg_spec),
                          host=dict(type='str'),
                          port=dict(type='str'),
-                         countries=dict(type='list'),
+                         countries=dict(type='list', elements='str'),
                          )
 
     argument_spec = meraki_argument_spec()
@@ -389,20 +388,20 @@ def main():
                 meraki.fail_json(msg="application argument is required when type is application.")
             elif rule['type'] == 'application_category' and rule['application'] is None:
                 meraki.fail_json(msg="application argument is required when type is application_category.")
-            elif rule['type'] == 'blacklisted_countries' and rule['countries'] is None:
-                meraki.fail_json(msg="countries argument is required when type is blacklisted_countries.")
+            elif rule['type'] == 'blocked_countries' and rule['countries'] is None:
+                meraki.fail_json(msg="countries argument is required when type is blocked_countries.")
             elif rule['type'] == 'host' and rule['host'] is None:
                 meraki.fail_json(msg="host argument is required when type is host.")
             elif rule['type'] == 'port' and rule['port'] is None:
                 meraki.fail_json(msg="port argument is required when type is port.")
-            elif rule['type'] == 'whitelisted_countries' and rule['countries'] is None:
-                meraki.fail_json(msg="countries argument is required when type is whitelisted_countries.")
+            elif rule['type'] == 'allowed_countries' and rule['countries'] is None:
+                meraki.fail_json(msg="countries argument is required when type is allowed_countries.")
 
     meraki.params['follow_redirects'] = 'all'
 
-    query_urls = {'mx_l7_firewall': '/networks/{net_id}/l7FirewallRules/'}
-    query_category_urls = {'mx_l7_firewall': '/networks/{net_id}/l7FirewallRules/applicationCategories'}
-    update_urls = {'mx_l7_firewall': '/networks/{net_id}/l7FirewallRules/'}
+    query_urls = {'mx_l7_firewall': '/networks/{net_id}/appliance/firewall/l7FirewallRules/'}
+    query_category_urls = {'mx_l7_firewall': '/networks/{net_id}/appliance/firewall/l7FirewallRules/applicationCategories'}
+    update_urls = {'mx_l7_firewall': '/networks/{net_id}/appliance/firewall/l7FirewallRules/'}
 
     meraki.url_catalog['get_all'].update(query_urls)
     meraki.url_catalog['get_categories'] = (query_category_urls)
@@ -452,20 +451,14 @@ def main():
             payload = rename_appid_to_id(payload)
             if meraki.module.check_mode is True:
                 response = restructure_response(payload)
-                diff = recursive_diff(restructure_response(rules), response)
-                meraki.result['diff'] = {'before': diff[0],
-                                         'after': diff[1],
-                                         }
+                meraki.generate_diff(restructure_response(rules), response)
                 meraki.result['data'] = response
                 meraki.result['changed'] = True
                 meraki.exit_json(**meraki.result)
             response = meraki.request(path, method='PUT', payload=json.dumps(payload))
             response = restructure_response(response)
             if meraki.status == 200:
-                diff = recursive_diff(restructure_response(rules), response)
-                meraki.result['diff'] = {'before': diff[0],
-                                         'after': diff[1],
-                                         }
+                meraki.generate_diff(restructure_response(rules), response)
                 meraki.result['data'] = response
                 meraki.result['changed'] = True
         else:

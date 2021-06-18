@@ -12,7 +12,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: query
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
   delegate_to: localhost
   register: query_all
 
@@ -23,7 +23,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: query
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 1
   delegate_to: localhost
   register: query_one
@@ -31,11 +31,30 @@
 - debug:
     msg: '{{query_one}}'
 
+- name: Enable switchport with check mode
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+  delegate_to: localhost
+  check_mode: yes
+  register: update_port_true_check
+
+- debug:
+    msg: '{{update_port_true_check}}'
+
+- assert:
+    that:
+      - update_port_true_check is changed
+      - update_port_true_check.data is defined
+
 - name: Enable switchport
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
   delegate_to: localhost
@@ -52,7 +71,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: false
   delegate_to: localhost
@@ -70,7 +89,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     name: Test Port
   delegate_to: localhost
@@ -83,11 +102,34 @@
     that:
       - update_port_name.data.name == 'Test Port'
 
+- name: Configure access port with check mode
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    name: Test Port
+    tags: desktop
+    type: access
+    vlan: 10
+  delegate_to: localhost
+  check_mode: yes
+  register: update_access_port_changed
+
+- debug:
+    msg: '{{update_access_port_changed}}'
+
+- assert:
+    that:
+      - update_access_port_changed is changed
+      - update_access_port_changed.data is defined
+
 - name: Configure access port
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Test Port
@@ -108,7 +150,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 8
     enabled: true
     name: Test Port
@@ -121,7 +163,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 8
     enabled: true
     name: Test Port
@@ -133,7 +175,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 8
     enabled: true
     name: Test Port
@@ -146,11 +188,26 @@
     that:
       - convert_idempotent.changed == False
 
+- name: Change voice VLAN for next task
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    name: Test Port
+    tags: desktop
+    type: access
+    vlan: 10
+    voice_vlan: 12
+  delegate_to: localhost
+  register: update_port_vvlan
+
 - name: Configure access port with voice VLAN
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Test Port
@@ -173,7 +230,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Test Port
@@ -192,11 +249,34 @@
       - update_port_access_idempotent.changed == False
       - update_port_access_idempotent.data is defined
 
+- name: Configure access port removing voice VLAN
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    name: Test Port
+    tags: desktop
+    type: access
+    vlan: 10
+    voice_vlan_state: absent
+  delegate_to: localhost
+  register: update_port_remove_vvlan
+
+- debug:
+    msg: '{{ update_port_remove_vvlan }}'
+
+- assert:
+    that:
+      - update_port_remove_vvlan.data.voice_vlan == None
+      - update_port_remove_vvlan.changed == True
+
 - name: Configure trunk port
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Server port
@@ -212,7 +292,7 @@
 
 - assert:
     that:
-      - update_trunk.data.tags == 'server'
+      - update_trunk.data.tags.0 == 'server'
       - update_trunk.data.type == 'trunk'
       - update_trunk.data.allowed_vlans == 'all'
 
@@ -220,7 +300,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Server port
@@ -239,7 +319,7 @@
 
 - assert:
     that:
-      - update_trunk.data.tags == 'server'
+      - update_trunk.data.tags.0 == 'server'
       - update_trunk.data.type == 'trunk'
       - update_trunk.data.allowed_vlans == '8,10,15,20'
 
@@ -247,7 +327,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Server port
@@ -266,7 +346,7 @@
 
 - assert:
     that:
-      - update_trunk.data.tags == 'server'
+      - update_trunk.data.tags.0 == 'server'
       - update_trunk.data.type == 'trunk'
       - update_trunk.data.allowed_vlans == '2,10,15,20'
 
@@ -274,7 +354,7 @@
   meraki_switchport:
     auth_key: '{{auth_key}}'
     state: present
-    serial: Q2HP-2C6E-GTLD
+    serial: '{{ serial_switch }}'
     number: 7
     enabled: true
     name: Server port
@@ -295,3 +375,294 @@
     that:
       - update_trunk_idempotent.changed == False
       - update_trunk_idempotent.data is defined
+
+- name: Enable Sticky MAC Using Replace
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "Sticky MAC allow list"
+    sticky_mac_allow_list:
+      macs:
+        - "aa:aa:bb:bb:cc:cc"
+      state: replaced
+    sticky_mac_allow_list_limit: 1
+  delegate_to: localhost
+  register: sticky_mac_allow_replace
+
+- debug:
+    msg: '{{sticky_mac_allow_replace}}'
+
+- assert:
+    that:
+      - sticky_mac_allow_replace.data.sticky_mac_allow_list_limit == 1
+      - sticky_mac_allow_replace.data.sticky_mac_allow_list == ["aa:aa:bb:bb:cc:cc"]
+
+- name: Enable Sticky MAC Using Replace Idempotent
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "Sticky MAC allow list"
+    sticky_mac_allow_list:
+      macs:
+        - "aa:aa:bb:bb:cc:cc"
+      state: replaced
+    sticky_mac_allow_list_limit: 1
+  delegate_to: localhost
+  register: idempotent_sticky_mac_allow_replace
+
+- debug:
+    msg: '{{idempotent_sticky_mac_allow_replace}}'
+
+- assert:
+    that:
+      - idempotent_sticky_mac_allow_replace.changed == False
+      - idempotent_sticky_mac_allow_replace.data is defined
+
+- name: Enable Sticky MAC Using Merge
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "Sticky MAC allow list"
+    sticky_mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: merged
+    sticky_mac_allow_list_limit: 2
+  delegate_to: localhost
+  register: sticky_mac_allow_merge
+
+- debug:
+    msg: '{{sticky_mac_allow_merge}}'
+
+- assert:
+    that:
+      - sticky_mac_allow_merge.data.sticky_mac_allow_list_limit == 2
+      - sticky_mac_allow_merge.data.sticky_mac_allow_list == ["aa:aa:bb:bb:cc:cc", "11:aa:bb:bb:cc:cc"]
+
+- name: Enable Sticky MAC Using Merge Idempotent
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "Sticky MAC allow list"
+    sticky_mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: merged
+    sticky_mac_allow_list_limit: 2
+  delegate_to: localhost
+  register: idempotent_sticky_mac_allow_merge
+
+- debug:
+    msg: '{{idempotent_sticky_mac_allow_merge}}'
+
+- assert:
+    that:
+      - idempotent_sticky_mac_allow_merge.changed == False
+      - idempotent_sticky_mac_allow_merge.data is defined
+
+- name: Delete Sticky MAC From Allow List
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "Sticky MAC allow list"
+    sticky_mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: deleted
+    sticky_mac_allow_list_limit: 2
+  delegate_to: localhost
+  register: delete_sticky_mac
+
+- debug:
+    msg: '{{delete_sticky_mac}}'
+
+- assert:
+    that:
+      - delete_sticky_mac.data.sticky_mac_allow_list_limit == 2
+      - delete_sticky_mac.data.sticky_mac_allow_list == ["aa:aa:bb:bb:cc:cc"]
+
+- name: Delete Sticky MAC Idempotent
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "Sticky MAC allow list"
+    sticky_mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: deleted
+    sticky_mac_allow_list_limit: 2
+  delegate_to: localhost
+  register: idempotent_delete_sticky_mac
+
+- debug:
+    msg: '{{idempotent_delete_sticky_mac}}'
+
+- assert:
+    that:
+      - idempotent_delete_sticky_mac.changed == False
+      - idempotent_delete_sticky_mac.data is defined
+
+- name: Enable MAC Allow Using Replace
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "MAC allow list"
+    mac_allow_list:
+      macs:
+        - "aa:aa:bb:bb:cc:cc"
+      state: replaced
+  delegate_to: localhost
+  register: mac_allow_replace
+
+- debug:
+    msg: '{{mac_allow_replace}}'
+
+- assert:
+    that:
+      - mac_allow_replace.data.mac_allow_list == ["aa:aa:bb:bb:cc:cc"]
+
+- name: Enable MAC Allow Using Replace Idempotent
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "MAC allow list"
+    mac_allow_list:
+      macs:
+        - "aa:aa:bb:bb:cc:cc"
+      state: replaced
+  delegate_to: localhost
+  register: idempotent_mac_allow_replace
+
+- debug:
+    msg: '{{idempotent_mac_allow_replace}}'
+
+- assert:
+    that:
+      - idempotent_mac_allow_replace.changed == False
+      - idempotent_mac_allow_replace.data is defined
+
+- name: Enable MAC Allow Using Merge
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "MAC allow list"
+    mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: merged
+  delegate_to: localhost
+  register: mac_allow_merge
+
+- debug:
+    msg: '{{mac_allow_merge}}'
+
+- assert:
+    that:
+      - mac_allow_merge.data.mac_allow_list == ["aa:aa:bb:bb:cc:cc", "11:aa:bb:bb:cc:cc"]
+
+- name: Enable MAC Allow Using Merge Idempotent
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "MAC allow list"
+    mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: merged
+  delegate_to: localhost
+  register: idempotent_mac_allow_merge
+
+- debug:
+    msg: '{{idempotent_mac_allow_merge}}'
+
+- assert:
+    that:
+      - idempotent_mac_allow_merge.changed == False
+      - idempotent_mac_allow_merge.data is defined
+
+- name: Delete MAC From Allow List
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "MAC allow list"
+    mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: deleted
+  delegate_to: localhost
+  register: delete_mac
+
+- debug:
+    msg: '{{delete_mac}}'
+
+- assert:
+    that:
+      - delete_mac.data.mac_allow_list == ["aa:aa:bb:bb:cc:cc"]
+
+- name: Delete MAC Idempotent
+  meraki_switchport:
+    auth_key: '{{auth_key}}'
+    state: present
+    serial: '{{ serial_switch }}'
+    number: 7
+    enabled: true
+    type: access
+    access_policy_type: "MAC allow list"
+    mac_allow_list:
+      macs:
+        - "11:aa:bb:bb:cc:cc"
+      state: deleted
+  delegate_to: localhost
+  register: idempotent_delete_mac
+
+- debug:
+    msg: '{{idempotent_delete_mac}}'
+
+- assert:
+    that:
+      - idempotent_delete_mac.changed == False
+      - idempotent_delete_mac.data is defined

@@ -17,7 +17,6 @@ DOCUMENTATION = r'''
 ---
 module: meraki_mr_l3_firewall
 short_description: Manage MR access point layer 3 firewalls in the Meraki cloud
-version_added: "2.7"
 description:
 - Allows for creation, management, and visibility into layer 3 firewalls implemented on Meraki MR access points.
 - Module is not idempotent as of current release.
@@ -55,6 +54,7 @@ options:
         description:
         - List of firewall rules.
         type: list
+        elements: dict
         suboptions:
             policy:
                 description:
@@ -80,7 +80,7 @@ options:
                 type: str
 author:
 - Kevin Breit (@kbreit)
-extends_documentation_fragment: meraki
+extends_documentation_fragment: cisco.meraki.meraki
 '''
 
 EXAMPLES = r'''
@@ -197,20 +197,13 @@ def main():
 
     meraki.params['follow_redirects'] = 'all'
 
-    query_urls = {'mr_l3_firewall': '/networks/{net_id}/ssids/{number}/l3FirewallRules'}
-    update_urls = {'mr_l3_firewall': '/networks/{net_id}/ssids/{number}/l3FirewallRules'}
+    query_urls = {'mr_l3_firewall': '/networks/{net_id}/wireless/ssids/{number}/firewall/l3FirewallRules'}
+    update_urls = {'mr_l3_firewall': '/networks/{net_id}/wireless/ssids/{number}/firewall/l3FirewallRules'}
 
     meraki.url_catalog['get_all'].update(query_urls)
     meraki.url_catalog['update'] = update_urls
 
     payload = None
-
-    # if the user is working with this module in only check mode we do not
-    # want to make any changes to the environment, just return the current
-    # state with no modifications
-    # FIXME: Work with Meraki so they can implement a check mode
-    if module.check_mode:
-        meraki.exit_json(**meraki.result)
 
     # execute checks for argument completeness
 
@@ -252,10 +245,33 @@ def main():
                         update = True
         except KeyError:
             pass
-        if rules[len(rules) - 2] != meraki.params['allow_lan_access']:
+        # meraki.fail_json(msg=rules)
+        if rules['rules'][len(rules['rules']) - 2] != meraki.params['allow_lan_access']:
             update = True
         if update is True:
             payload['allowLanAccess'] = meraki.params['allow_lan_access']
+            if meraki.check_mode is True:
+                # This code is disgusting, rework it at some point
+                if 'rules' in payload:
+                    cleansed_payload = payload['rules']
+                    cleansed_payload.append(rules['rules'][len(rules['rules']) - 1])
+                    cleansed_payload.append(rules['rules'][len(rules['rules']) - 2])
+                    if meraki.params['allow_lan_access'] is None:
+                        cleansed_payload[len(cleansed_payload) - 2]['policy'] = rules['rules'][len(rules['rules']) - 2]['policy']
+                    else:
+                        if meraki.params['allow_lan_access'] is True:
+                            cleansed_payload[len(cleansed_payload) - 2]['policy'] = 'allow'
+                        else:
+                            cleansed_payload[len(cleansed_payload) - 2]['policy'] = 'deny'
+                else:
+                    if meraki.params['allow_lan_access'] is True:
+                        rules['rules'][len(rules['rules']) - 2]['policy'] = 'allow'
+                    else:
+                        rules['rules'][len(rules['rules']) - 2]['policy'] = 'deny'
+                    cleansed_payload = rules
+                meraki.result['data'] = cleansed_payload
+                meraki.result['changed'] = True
+                meraki.exit_json(**meraki.result)
             response = meraki.request(path, method='PUT', payload=json.dumps(payload))
             if meraki.status == 200:
                 meraki.result['data'] = response
